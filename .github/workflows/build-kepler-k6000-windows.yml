@@ -15,6 +15,10 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      # 新增：安装 pkg-config 解决依赖检测失败
+      - name: Install pkg-config
+        run: choco install pkgconfiglite -y
+
       # 配置 VS2022 编译环境
       - name: Setup MSVC build tools
         uses: microsoft/setup-msbuild@v2
