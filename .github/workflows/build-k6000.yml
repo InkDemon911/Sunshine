@@ -1,15 +1,12 @@
 name: Build Sunshine for K6000 (NVENC H.264)
-
 on:
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: windows-latest
     defaults:
       run:
         shell: msys2 {0}
-
     steps:
       - name: Checkout Sunshine
         uses: actions/checkout@v4
@@ -27,6 +24,7 @@ jobs:
             cmake
             ninja
             pkgconf
+            diffutils
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-yasm
             mingw-w64-x86_64-nasm
@@ -47,7 +45,6 @@ jobs:
           cd nv-codec-headers
           git checkout n11.1.5.0
           make install PREFIX=$MINGW_PREFIX
-
           # 重写 .pc，保证 Libs 非空
           printf '%s\n' \
             "prefix=$MINGW_PREFIX" \
@@ -59,15 +56,12 @@ jobs:
             "Cflags: -I\${includedir}" \
             "Libs: -L\${prefix}/lib" \
             > $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
-
           echo "=== ffnvcodec.pc content ==="
           cat $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
-
           export PKG_CONFIG_PATH=$MINGW_PREFIX/lib/pkgconfig
           export PKG_CONFIG_LIBDIR=$MINGW_PREFIX/lib/pkgconfig
           export PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
           export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
-
           echo "=== pkg-config exit codes ==="
           pkg-config --cflags ffnvcodec; echo "cflags exit: $?"
           pkg-config --libs   ffnvcodec; echo "libs   exit: $?"
@@ -78,7 +72,6 @@ jobs:
           git clone https://github.com/FFmpeg/FFmpeg.git ffmpeg
           cd ffmpeg
           git checkout n6.1.1
-
           # 创建假的 libnvEncodeAPI.a，同时定义大小写两种符号
           mkdir -p /tmp/fakenv
           cat > /tmp/fakenv/nv.c <<'EOF'
@@ -89,7 +82,6 @@ jobs:
           EOF
           gcc -c /tmp/fakenv/nv.c -o /tmp/fakenv/nv.o
           ar rcs $MINGW_PREFIX/lib/libnvEncodeAPI.a /tmp/fakenv/nv.o
-
           # pkg-config wrapper：给 ffnvcodec 返回 MSYS2 风格路径
           mkdir -p /tmp/fakebin
           cat > /tmp/fakebin/pkg-config <<'WRAPPER'
@@ -112,7 +104,6 @@ jobs:
           WRAPPER
           chmod +x /tmp/fakebin/pkg-config
           export PATH="/tmp/fakebin:$PATH"
-
           echo "=== pkg-config ffnvcodec ==="
           pkg-config --exists ffnvcodec && echo "ffnvcodec found" || echo "ffnvcodec NOT found"
           pkg-config --cflags ffnvcodec
@@ -125,18 +116,18 @@ jobs:
             --enable-nvenc \
             --enable-w32threads \
             --disable-doc \
-            --disable-cuda
-          || { echo "=== configure failed, config.log tail ==="; grep -n -A 30 "check_pkg_config ffnvcodec\|check_func_headers" ffbuild/config.log | tail -n 200; exit 1; }
+            --disable-cuda \
+            --disable-hwcontext_cuda
+
+          CONFIGURE_RET=$?
+          if [ $CONFIGURE_RET -ne 0 ]; then
+            echo "=== configure failed, config.log tail ==="
+            grep -n -A 30 "check_pkg_config ffnvcodec\|check_func_headers" ffbuild/config.log | tail -n 200
+            exit $CONFIGURE_RET
+          fi
 
           make -j$(nproc)
           make install
-
-      - name: Upload FFmpeg config.log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-config-log
-          path: D:/a/_temp/msys64/tmp/ffmpeg/ffbuild/config.log
 
       - name: Copy config.log to workspace
         if: failure()
@@ -149,7 +140,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-config-log
-          path: config.log          
+          path: config.log
 
       - name: Build Sunshine
         run: |
