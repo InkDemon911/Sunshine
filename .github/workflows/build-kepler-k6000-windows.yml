@@ -32,7 +32,7 @@ jobs:
           # 初始化 vcpkg
           C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
           # 安装 64 位 Release 版 libtiff（自动包含 pkg-config 元数据）
-          C:\vcpkg\vcpkg install tiff:x64-windows-release
+          C:\vcpkg\vcpkg install tiff:x64-windows-release Qt6:x64-windows-release
           # 配置 CMake 工具链文件，让构建系统自动找到 vcpkg 安装的库
           echo "CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           # 配置 vcpkg 默认编译目标
