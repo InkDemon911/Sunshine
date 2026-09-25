@@ -125,7 +125,6 @@ jobs:
             --enable-nvenc \
             --enable-w32threads \
             --disable-doc \
-            --disable-hwaccel=cuda --disable-hwaccel=cuvid \
             --disable-cuda
           || { echo "=== configure failed, config.log tail ==="; grep -n -A 30 "check_pkg_config ffnvcodec\|check_func_headers" ffbuild/config.log | tail -n 200; exit 1; }
 
