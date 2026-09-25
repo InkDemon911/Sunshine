@@ -79,38 +79,44 @@ jobs:
           cd ffmpeg
           git checkout n6.1.1
 
-          export PKG_CONFIG_PATH=$MINGW_PREFIX/lib/pkgconfig
-          export PKG_CONFIG_LIBDIR=$MINGW_PREFIX/lib/pkgconfig
-          export PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
-          export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
-
-          # 创建假的 libnvEncodeAPI.a，骗过 configure 链接测试
+          # 创建假的 libnvEncodeAPI.a，同时定义大小写两种符号
           mkdir -p /tmp/fakenv
           cat > /tmp/fakenv/nv.c <<'EOF'
           typedef int NVENCSTATUS;
           typedef struct _NV_ENCODE_API_FUNCTION_LIST NV_ENCODE_API_FUNCTION_LIST;
           NVENCSTATUS NvEncodeAPICreateInstance(NV_ENCODE_API_FUNCTION_LIST *p) { return 0; }
+          NVENCSTATUS nvEncodeAPICreateInstance(NV_ENCODE_API_FUNCTION_LIST *p) { return 0; }
           EOF
           gcc -c /tmp/fakenv/nv.c -o /tmp/fakenv/nv.o
           ar rcs $MINGW_PREFIX/lib/libnvEncodeAPI.a /tmp/fakenv/nv.o
 
-          # 更新 .pc，加上 -lnvEncodeAPI
-          printf '%s\n' \
-            "prefix=$MINGW_PREFIX" \
-            "includedir=\${prefix}/include" \
-            "" \
-            "Name: ffnvcodec" \
-            "Description: FFmpeg version of Nvidia Codec SDK headers" \
-            "Version: 11.1.5.0" \
-            "Cflags: -I\${includedir}" \
-            "Libs: -L\${prefix}/lib -lnvEncodeAPI" \
-            > $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
+          # pkg-config wrapper：给 ffnvcodec 返回 MSYS2 风格路径
+          mkdir -p /tmp/fakebin
+          cat > /tmp/fakebin/pkg-config <<'WRAPPER'
+          #!/bin/bash
+          REAL_PKG_CONFIG=/mingw64/bin/pkg-config
+          for arg in "$@"; do
+              if [[ "$arg" == *ffnvcodec* ]]; then
+                  case "$1" in
+                      --exists)        exit 0 ;;
+                      --modversion)    echo "11.1.5.0"; exit 0 ;;
+                      --cflags)        echo "-I/mingw64/include"; exit 0 ;;
+                      --cflags-only-I) echo "-I/mingw64/include"; exit 0 ;;
+                      --libs)          echo "-L/mingw64/lib -lnvEncodeAPI"; exit 0 ;;
+                      --libs-only-l)   echo "-lnvEncodeAPI"; exit 0 ;;
+                      --libs-only-L)   echo "-L/mingw64/lib"; exit 0 ;;
+                  esac
+              fi
+          done
+          exec "$REAL_PKG_CONFIG" "$@"
+          WRAPPER
+          chmod +x /tmp/fakebin/pkg-config
+          export PATH="/tmp/fakebin:$PATH"
 
           echo "=== pkg-config ffnvcodec ==="
           pkg-config --exists ffnvcodec && echo "ffnvcodec found" || echo "ffnvcodec NOT found"
-          pkg-config --modversion ffnvcodec || true
-          echo "cflags:"; pkg-config --cflags ffnvcodec; echo "cflags exit: $?"
-          echo "libs:";   pkg-config --libs   ffnvcodec; echo "libs   exit: $?"
+          pkg-config --cflags ffnvcodec
+          pkg-config --libs ffnvcodec
 
           ./configure \
             --prefix=$MINGW_PREFIX \
@@ -119,12 +125,30 @@ jobs:
             --enable-nvenc \
             --enable-w32threads \
             --disable-doc \
-            --extra-cflags="-I$MINGW_PREFIX/include" \
-            --extra-ldflags="-L$MINGW_PREFIX/lib -Wl,--unresolved-symbols=ignore-all" \
-          || { echo "=== configure failed, config.log tail ==="; tail -n 300 ffbuild/config.log; exit 1; }
+          || { echo "=== configure failed, config.log tail ==="; grep -n -A 30 "check_pkg_config ffnvcodec\|check_func_headers" ffbuild/config.log | tail -n 200; exit 1; }
 
           make -j$(nproc)
           make install
+
+      - name: Upload FFmpeg config.log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-config-log
+          path: D:/a/_temp/msys64/tmp/ffmpeg/ffbuild/config.log
+
+      - name: Copy config.log to workspace
+        if: failure()
+        shell: msys2 {0}
+        run: |
+          cp /tmp/ffmpeg/ffbuild/config.log "$GITHUB_WORKSPACE/config.log" || true
+
+      - name: Upload FFmpeg config.log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-config-log
+          path: config.log          
 
       - name: Build Sunshine
         run: |
