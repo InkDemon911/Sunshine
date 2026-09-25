@@ -48,8 +48,10 @@ jobs:
           git checkout n11.1.5.0
           make install PREFIX=$MINGW_PREFIX
 
-          # 关键：把 .pc 文件里的 Windows 路径改成 MSYS2 路径
+          # 修正 .pc 文件，确保 Cflags 和 Libs 字段正确
           sed -i "s#^prefix=.*#prefix=$MINGW_PREFIX#" $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
+          sed -i "s#^Cflags:.*#Cflags: -I$MINGW_PREFIX/include#" $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
+          grep -q "^Libs:" $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc || echo "Libs:" >> $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
 
           echo "=== ffnvcodec.pc content ==="
           cat $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
@@ -68,7 +70,9 @@ jobs:
           echo "=== pkg-config ffnvcodec ==="
           pkg-config --exists ffnvcodec && echo "ffnvcodec found" || echo "ffnvcodec NOT found"
           pkg-config --modversion ffnvcodec || true
+          echo "cflags:"
           pkg-config --cflags ffnvcodec || true
+          echo "libs:"
           pkg-config --libs ffnvcodec || true
 
           ./configure \
@@ -78,7 +82,9 @@ jobs:
             --enable-nvenc \
             --enable-w32threads \
             --disable-doc \
-          || { echo "=== configure failed, config.log tail ==="; tail -n 100 ffbuild/config.log; exit 1; }
+            --extra-cflags="-I$MINGW_PREFIX/include" \
+            --extra-ldflags="-L$MINGW_PREFIX/lib" \
+          || { echo "=== configure failed, config.log tail ==="; tail -n 200 ffbuild/config.log; exit 1; }
 
           make -j$(nproc)
           make install
