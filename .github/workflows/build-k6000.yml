@@ -48,10 +48,17 @@ jobs:
           git checkout n11.1.5.0
           make install PREFIX=$MINGW_PREFIX
 
-          # 修正 .pc 文件，确保 Cflags 和 Libs 字段正确
-          sed -i "s#^prefix=.*#prefix=$MINGW_PREFIX#" $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
-          sed -i "s#^Cflags:.*#Cflags: -I$MINGW_PREFIX/include#" $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
-          grep -q "^Libs:" $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc || echo "Libs:" >> $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
+          # 完整重写 .pc 文件，保证 Cflags 和 Libs 都非空
+          cat > $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc <<EOF
+          prefix=$MINGW_PREFIX
+          includedir=\${prefix}/include
+
+          Name: ffnvcodec
+          Description: FFmpeg version of Nvidia Codec SDK headers
+          Version: 11.1.5.0
+          Cflags: -I\${includedir}
+          Libs: -L\${prefix}/lib
+          EOF
 
           echo "=== ffnvcodec.pc content ==="
           cat $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
