@@ -46,7 +46,7 @@ jobs:
           git clone https://github.com/FFmpeg/nv-codec-headers.git
           cd nv-codec-headers
           git checkout n11.1.5.0
-          make install PREFIX=/mingw64
+          make install PREFIX=$MINGW_PREFIX
 
       - name: Build FFmpeg 6.1.1 with NVENC
         run: |
@@ -54,14 +54,23 @@ jobs:
           git clone https://github.com/FFmpeg/FFmpeg.git ffmpeg
           cd ffmpeg
           git checkout n6.1.1
-          export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
+
+          export PKG_CONFIG_PATH=$MINGW_PREFIX/lib/pkgconfig
+          export PKG_CONFIG_LIBDIR=$MINGW_PREFIX/lib/pkgconfig
+
+          echo "MINGW_PREFIX=$MINGW_PREFIX"
+          ls -l $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc || true
+          pkg-config --exists ffnvcodec && echo "ffnvcodec found" || echo "ffnvcodec NOT found"
+          pkg-config --modversion ffnvcodec || true
+
           ./configure \
-            --prefix=/mingw64 \
+            --prefix=$MINGW_PREFIX \
             --enable-shared --disable-static \
             --enable-gpl --enable-nonfree \
-            --enable-nvenc --enable-nvdec \
+            --enable-nvenc \
             --enable-w32threads \
             --disable-doc
+
           make -j$(nproc)
           make install
 
