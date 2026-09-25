@@ -1,0 +1,61 @@
+name: Build Sunshine for Kepler K6000 (Windows)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      # 配置 VS2022 编译环境
+      - name: Setup MSVC build tools
+        uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: "17"
+          workloads: "Microsoft.VisualStudio.Workload.NativeDesktop"
+
+      # 安装 CUDA 11.8 Windows 版
+      - name: Install CUDA Toolkit 11.8
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_522.06_windows.exe" -OutFile "cuda_installer.exe"
+          Start-Process -FilePath ".\cuda_installer.exe" -ArgumentList "-s", "nvcc_11.8", "cudart_11.8" -Wait
+          echo "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify CUDA
+        run: nvcc -V
+
+      # 安装 FFmpeg 预编译库（Windows 编译必需）
+      - name: Install FFmpeg SDK
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip" -OutFile "ffmpeg.zip"
+          Expand-Archive -Path ffmpeg.zip -DestinationPath C:\ffmpeg
+          echo "FFMPEG_DIR=C:\ffmpeg\ffmpeg-master-latest-win64-gpl-shared" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      # CMake 配置（核心参数与 Linux 一致）
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DSUNSHINE_ENABLE_CUDA=ON `
+            -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8" `
+            -DCMAKE_CUDA_ARCHITECTURES=35 `
+            .
+
+      - name: Build Sunshine
+        run: cmake --build build --config Release
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunshine-windows-k6000-nvenc
+          path: build/Release/
