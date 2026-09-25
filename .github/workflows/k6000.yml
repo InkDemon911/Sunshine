@@ -1,163 +1,80 @@
-name: Build Sunshine for K6000 (NVENC H.264)
+name: Build Sunshine for Quadro K6000 (Windows)
+
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
+
 jobs:
   build:
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: msys2 {0}
+    runs-on: windows-2022
+
     steps:
-      - name: Checkout Sunshine
+      # 1. 拉取完整源码 + 所有递归子模块
+      - name: Checkout source code
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
+      # 2. 配置 MSVC 编译环境（VS2022）
+      - name: Setup MSVC build tools
+        uses: microsoft/setup-msbuild@v2
         with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            git
-            make
-            cmake
-            ninja
-            pkgconf
-            diffutils
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-yasm
-            mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-boost
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-curl
-            mingw-w64-x86_64-SDL2
-            mingw-w64-x86_64-opus
-            mingw-w64-x86_64-libvpx
-            mingw-w64-x86_64-zlib
-            mingw-w64-x86_64-libpng
-            mingw-w64-x86_64-miniupnpc
+          vs-version: "17"
 
-      - name: Build nv-codec-headers (n11.1.5.0)
+      # 3. 安装 pkg-config 工具
+      - name: Install pkg-config
+        run: choco install pkgconfiglite -y
+
+      # 4. 用 vcpkg 安装 libtiff（仅装库，不注入工具链）
+      - name: Install libtiff via vcpkg
         run: |
-          cd /tmp
-          git clone https://github.com/FFmpeg/nv-codec-headers.git
-          cd nv-codec-headers
-          git checkout n11.1.5.0
-          make install PREFIX=$MINGW_PREFIX
-          # 重写 .pc，保证 Libs 非空
-          printf '%s\n' \
-            "prefix=$MINGW_PREFIX" \
-            "includedir=\${prefix}/include" \
-            "" \
-            "Name: ffnvcodec" \
-            "Description: FFmpeg version of Nvidia Codec SDK headers" \
-            "Version: 11.1.5.0" \
-            "Cflags: -I\${includedir}" \
-            "Libs: -L\${prefix}/lib" \
-            > $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
-          echo "=== ffnvcodec.pc content ==="
-          cat $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
-          export PKG_CONFIG_PATH=$MINGW_PREFIX/lib/pkgconfig
-          export PKG_CONFIG_LIBDIR=$MINGW_PREFIX/lib/pkgconfig
-          export PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
-          export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
-          echo "=== pkg-config exit codes ==="
-          pkg-config --cflags ffnvcodec; echo "cflags exit: $?"
-          pkg-config --libs   ffnvcodec; echo "libs   exit: $?"
+          $ProgressPreference = 'SilentlyContinue'
+          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg --depth 1 --branch 2024.02.14
+          C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+          C:\vcpkg\vcpkg install tiff:x64-windows-release
+          # 只把 pkg-config 路径加入环境，让 CMake 通过 pkg-config 找到 tiff
+          echo "PKG_CONFIG_PATH=C:\vcpkg\installed\x64-windows-release\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "C:\vcpkg\installed\x64-windows-release\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Build FFmpeg 6.1.1 with NVENC
+      # 5. 安装 CUDA Toolkit 11.8（最后支持 Kepler sm_35 架构）
+      - name: Install CUDA Toolkit 11.8
         run: |
-          cd /tmp
-          git clone https://github.com/FFmpeg/FFmpeg.git ffmpeg
-          cd ffmpeg
-          git checkout n6.1.1
-          # 创建假的 libnvEncodeAPI.a，同时定义大小写两种符号
-          mkdir -p /tmp/fakenv
-          cat > /tmp/fakenv/nv.c <<'EOF'
-          typedef int NVENCSTATUS;
-          typedef struct _NV_ENCODE_API_FUNCTION_LIST NV_ENCODE_API_FUNCTION_LIST;
-          NVENCSTATUS NvEncodeAPICreateInstance(NV_ENCODE_API_FUNCTION_LIST *p) { return 0; }
-          NVENCSTATUS nvEncodeAPICreateInstance(NV_ENCODE_API_FUNCTION_LIST *p) { return 0; }
-          EOF
-          gcc -c /tmp/fakenv/nv.c -o /tmp/fakenv/nv.o
-          ar rcs $MINGW_PREFIX/lib/libnvEncodeAPI.a /tmp/fakenv/nv.o
-          # pkg-config wrapper：给 ffnvcodec 返回 MSYS2 风格路径
-          mkdir -p /tmp/fakebin
-          cat > /tmp/fakebin/pkg-config <<'WRAPPER'
-          #!/bin/bash
-          REAL_PKG_CONFIG=/mingw64/bin/pkg-config
-          for arg in "$@"; do
-              if [[ "$arg" == *ffnvcodec* ]]; then
-                  case "$1" in
-                      --exists)        exit 0 ;;
-                      --modversion)    echo "11.1.5.0"; exit 0 ;;
-                      --cflags)        echo "-I/mingw64/include"; exit 0 ;;
-                      --cflags-only-I) echo "-I/mingw64/include"; exit 0 ;;
-                      --libs)          echo "-L/mingw64/lib -lnvEncodeAPI"; exit 0 ;;
-                      --libs-only-l)   echo "-lnvEncodeAPI"; exit 0 ;;
-                      --libs-only-L)   echo "-L/mingw64/lib"; exit 0 ;;
-                  esac
-              fi
-          done
-          exec "$REAL_PKG_CONFIG" "$@"
-          WRAPPER
-          chmod +x /tmp/fakebin/pkg-config
-          export PATH="/tmp/fakebin:$PATH"
-          echo "=== pkg-config ffnvcodec ==="
-          pkg-config --exists ffnvcodec && echo "ffnvcodec found" || echo "ffnvcodec NOT found"
-          pkg-config --cflags ffnvcodec
-          pkg-config --libs ffnvcodec
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_522.06_windows.exe" -OutFile "cuda_installer.exe"
+          Start-Process -FilePath ".\cuda_installer.exe" -ArgumentList "-s", "nvcc_11.8", "cudart_11.8" -Wait
+          echo "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-          ./configure \
-            --prefix=$MINGW_PREFIX \
-            --enable-shared --disable-static \
-            --enable-gpl --enable-nonfree \
-            --enable-nvenc \
-            --enable-w32threads \
-            --disable-doc \
-            --disable-cuda
+      # 6. 验证 CUDA 安装
+      - name: Verify CUDA
+        run: nvcc -V
 
-          CONFIGURE_RET=$?
-          if [ $CONFIGURE_RET -ne 0 ]; then
-            echo "=== configure failed, config.log tail ==="
-            grep -n -A 30 "check_pkg_config ffnvcodec\|check_func_headers" ffbuild/config.log | tail -n 200
-            exit $CONFIGURE_RET
-          fi
-
-          make -j$(nproc)
-          make install
-
-      - name: Copy config.log to workspace
-        if: failure()
-        shell: msys2 {0}
+      # 7. 安装 FFmpeg 开发库
+      - name: Install FFmpeg SDK
         run: |
-          cp /tmp/ffmpeg/ffbuild/config.log "$GITHUB_WORKSPACE/config.log" || true
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip" -OutFile "ffmpeg.zip"
+          Expand-Archive -Path ffmpeg.zip -DestinationPath C:\ffmpeg
+          echo "FFMPEG_DIR=C:\ffmpeg\ffmpeg-master-latest-win64-gpl-shared" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Upload FFmpeg config.log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-config-log
-          path: config.log
+      # 8. CMake 配置（移除 vcpkg 工具链，避免递归）
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DSUNSHINE_ENABLE_CUDA=ON `
+            -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8" `
+            -DCMAKE_CUDA_ARCHITECTURES=35 `
+            .
 
+      # 9. 执行编译
       - name: Build Sunshine
-        run: |
-          export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/mingw64 \
-            -DCMAKE_PREFIX_PATH=/mingw64
-          cmake --build build -j$(nproc)
+        run: cmake --build build --config Release
 
-      - name: Collect artifacts
-        run: |
-          mkdir -p dist
-          cp build/sunshine.exe dist/
-          cp /mingw64/bin/*.dll dist/ || true
-
-      - name: Upload artifact
+      # 10. 上传编译产物
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sunshine-k6000
-          path: dist/
+          name: sunshine-windows-quadro-k6000-nvenc
+          path: build/Release/
