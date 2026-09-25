@@ -1,0 +1,87 @@
+name: Build Sunshine for K6000 (NVENC H.264)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout Sunshine
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            cmake
+            ninja
+            pkgconf
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-yasm
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-curl
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-libvpx
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-libpng
+            mingw-w64-x86_64-miniupnpc
+
+      - name: Build nv-codec-headers (n11.1.5.0)
+        run: |
+          cd /tmp
+          git clone https://github.com/FFmpeg/nv-codec-headers.git
+          cd nv-codec-headers
+          git checkout n11.1.5.0
+          make install PREFIX=/mingw64
+
+      - name: Build FFmpeg 6.1.1 with NVENC
+        run: |
+          cd /tmp
+          git clone https://github.com/FFmpeg/FFmpeg.git ffmpeg
+          cd ffmpeg
+          git checkout n6.1.1
+          export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
+          ./configure \
+            --prefix=/mingw64 \
+            --enable-shared --disable-static \
+            --enable-gpl --enable-nonfree \
+            --enable-nvenc --enable-nvdec \
+            --enable-w32threads \
+            --disable-doc
+          make -j$(nproc)
+          make install
+
+      - name: Build Sunshine
+        run: |
+          export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/mingw64 \
+            -DCMAKE_PREFIX_PATH=/mingw64
+          cmake --build build -j$(nproc)
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          cp build/sunshine.exe dist/
+          cp /mingw64/bin/*.dll dist/ || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunshine-k6000
+          path: dist/
