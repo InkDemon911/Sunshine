@@ -72,6 +72,10 @@ jobs:
           git clone https://github.com/FFmpeg/FFmpeg.git ffmpeg
           cd ffmpeg
           git checkout n6.1.1
+
+          # 关键修复：删除hwcontext_cuda.c，规避CUDA头缺失编译报错
+          rm -f libavutil/hwcontext_cuda.c
+
           # 创建假的 libnvEncodeAPI.a，同时定义大小写两种符号
           mkdir -p /tmp/fakenv
           cat > /tmp/fakenv/nv.c <<'EOF'
@@ -82,6 +86,7 @@ jobs:
           EOF
           gcc -c /tmp/fakenv/nv.c -o /tmp/fakenv/nv.o
           ar rcs $MINGW_PREFIX/lib/libnvEncodeAPI.a /tmp/fakenv/nv.o
+
           # pkg-config wrapper：给 ffnvcodec 返回 MSYS2 风格路径
           mkdir -p /tmp/fakebin
           cat > /tmp/fakebin/pkg-config <<'WRAPPER'
@@ -104,6 +109,7 @@ jobs:
           WRAPPER
           chmod +x /tmp/fakebin/pkg-config
           export PATH="/tmp/fakebin:$PATH"
+
           echo "=== pkg-config ffnvcodec ==="
           pkg-config --exists ffnvcodec && echo "ffnvcodec found" || echo "ffnvcodec NOT found"
           pkg-config --cflags ffnvcodec
@@ -116,8 +122,7 @@ jobs:
             --enable-nvenc \
             --enable-w32threads \
             --disable-doc \
-            --disable-cuda \
-            --disable-hwcontext_cuda
+            --disable-cuda
 
           CONFIGURE_RET=$?
           if [ $CONFIGURE_RET -ne 0 ]; then
