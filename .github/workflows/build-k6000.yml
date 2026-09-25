@@ -48,6 +48,12 @@ jobs:
           git checkout n11.1.5.0
           make install PREFIX=$MINGW_PREFIX
 
+          # 关键：把 .pc 文件里的 Windows 路径改成 MSYS2 路径
+          sed -i "s#^prefix=.*#prefix=$MINGW_PREFIX#" $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
+
+          echo "=== ffnvcodec.pc content ==="
+          cat $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
+
       - name: Build FFmpeg 6.1.1 with NVENC
         run: |
           cd /tmp
@@ -59,9 +65,11 @@ jobs:
           export PKG_CONFIG_LIBDIR=$MINGW_PREFIX/lib/pkgconfig
 
           echo "MINGW_PREFIX=$MINGW_PREFIX"
-          ls -l $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc || true
+          echo "=== pkg-config ffnvcodec ==="
           pkg-config --exists ffnvcodec && echo "ffnvcodec found" || echo "ffnvcodec NOT found"
           pkg-config --modversion ffnvcodec || true
+          pkg-config --cflags ffnvcodec || true
+          pkg-config --libs ffnvcodec || true
 
           ./configure \
             --prefix=$MINGW_PREFIX \
@@ -69,7 +77,8 @@ jobs:
             --enable-gpl --enable-nonfree \
             --enable-nvenc \
             --enable-w32threads \
-            --disable-doc
+            --disable-doc \
+          || { echo "=== configure failed, config.log tail ==="; tail -n 100 ffbuild/config.log; exit 1; }
 
           make -j$(nproc)
           make install
