@@ -48,7 +48,7 @@ jobs:
           git checkout n11.1.5.0
           make install PREFIX=$MINGW_PREFIX
 
-          # 用 printf 重写 .pc，保证 Libs 非空
+          # 重写 .pc，保证 Libs 非空
           printf '%s\n' \
             "prefix=$MINGW_PREFIX" \
             "includedir=\${prefix}/include" \
@@ -63,6 +63,11 @@ jobs:
           echo "=== ffnvcodec.pc content ==="
           cat $MINGW_PREFIX/lib/pkgconfig/ffnvcodec.pc
 
+          export PKG_CONFIG_PATH=$MINGW_PREFIX/lib/pkgconfig
+          export PKG_CONFIG_LIBDIR=$MINGW_PREFIX/lib/pkgconfig
+          export PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
+          export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
+
           echo "=== pkg-config exit codes ==="
           pkg-config --cflags ffnvcodec; echo "cflags exit: $?"
           pkg-config --libs   ffnvcodec; echo "libs   exit: $?"
@@ -76,15 +81,17 @@ jobs:
 
           export PKG_CONFIG_PATH=$MINGW_PREFIX/lib/pkgconfig
           export PKG_CONFIG_LIBDIR=$MINGW_PREFIX/lib/pkgconfig
+          export PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
+          export PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
 
           echo "MINGW_PREFIX=$MINGW_PREFIX"
           echo "=== pkg-config ffnvcodec ==="
           pkg-config --exists ffnvcodec && echo "ffnvcodec found" || echo "ffnvcodec NOT found"
           pkg-config --modversion ffnvcodec || true
           echo "cflags:"
-          pkg-config --cflags ffnvcodec || true
+          pkg-config --cflags ffnvcodec; echo "cflags exit: $?"
           echo "libs:"
-          pkg-config --libs ffnvcodec || true
+          pkg-config --libs ffnvcodec; echo "libs exit: $?"
 
           ./configure \
             --prefix=$MINGW_PREFIX \
