@@ -130,6 +130,7 @@ jobs:
             grep -n -A 30 "check_pkg_config ffnvcodec\|check_func_headers" ffbuild/config.log | tail -n 200
             exit $CONFIGURE_RET
           fi
+          sed -i '/hwcontext_cuda\.o/d' libavutil/Makefile
 
           make -j$(nproc)
           make install
