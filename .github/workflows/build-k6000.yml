@@ -124,7 +124,8 @@ jobs:
             --disable-doc \
             --disable-cuda \
             --disable-cuvid \
-            --disable-nvdec
+            --disable-nvdec \
+            --disable-vulkan
 
           CONFIGURE_RET=$?
           if [ $CONFIGURE_RET -ne 0 ]; then
