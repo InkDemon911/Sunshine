@@ -42,6 +42,7 @@ jobs:
             mingw-w64-x86_64-qt6-base
             mingw-w64-x86_64-qt6-svg
             mingw-w64-x86_64-qt6-tools
+            mingw-w64-x86_64-minhook
 
       - name: Build nv-codec-headers (n11.1.5.0)
         run: |
