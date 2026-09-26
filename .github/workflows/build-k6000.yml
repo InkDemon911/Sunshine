@@ -21,11 +21,11 @@ jobs:
           install: >-
             git
             make
-            cmake
-            ninja
             mingw-w64-x86_64-python-jinja
             mingw-w64-x86_64-python-pip
-            pkgconf
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
             diffutils
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-yasm
