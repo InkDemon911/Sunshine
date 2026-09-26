@@ -23,8 +23,8 @@ jobs:
             make
             cmake
             ninja
-            jinja2
-            uv
+            mingw-w64-x86_64-python-jinja
+            mingw-w64-x86_64-python-pip
             pkgconf
             diffutils
             mingw-w64-x86_64-toolchain
@@ -172,6 +172,8 @@ jobs:
             -DCMAKE_PREFIX_PATH=/mingw64 \
             -DFFMPEG_PREPARED_BINARIES=/mingw64 \
             -DSUNSHINE_ENABLE_TRAY=OFF
+            -DCPM_nv_codec_headers_13_1_SOURCE=/tmp/nv-codec-headers \
+            -DGLAD_SKIP_PIP_INSTALL=ON
           cmake --build build -j$(nproc)
 
       - name: Collect artifacts
