@@ -73,9 +73,6 @@ jobs:
           cd ffmpeg
           git checkout n6.1.1
 
-          # 关键修复：删除hwcontext_cuda.c，规避CUDA头缺失编译报错
-          rm -f libavutil/hwcontext_cuda.c
-
           # 创建假的 libnvEncodeAPI.a，同时定义大小写两种符号
           mkdir -p /tmp/fakenv
           cat > /tmp/fakenv/nv.c <<'EOF'
@@ -122,7 +119,9 @@ jobs:
             --enable-nvenc \
             --enable-w32threads \
             --disable-doc \
-            --disable-cuda
+            --disable-cuda \
+            --disable-cuvid \
+            --disable-nvdec
 
           CONFIGURE_RET=$?
           if [ $CONFIGURE_RET -ne 0 ]; then
@@ -130,6 +129,16 @@ jobs:
             grep -n -A 30 "check_pkg_config ffnvcodec\|check_func_headers" ffbuild/config.log | tail -n 200
             exit $CONFIGURE_RET
           fi
+
+          # 强制关闭 CUDA，避免 hwcontext_cuda 链接错误
+          if grep -q '^#define CONFIG_CUDA 1' config.h; then
+            sed -i 's/^#define CONFIG_CUDA 1/#define CONFIG_CUDA 0/' config.h
+          fi
+          if grep -q '^CONFIG_CUDA=yes' ffbuild/config.mak; then
+            sed -i 's/^CONFIG_CUDA=yes/CONFIG_CUDA=no/' ffbuild/config.mak
+          fi
+
+          # 保险：从 Makefile 中移除 hwcontext_cuda.o
           sed -i '/hwcontext_cuda\.o/d' libavutil/Makefile
 
           make -j$(nproc)
