@@ -3,7 +3,7 @@ name: CI-Windows Speaclized
 permissions: {}
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       # Azure Artifact Signing account name
       azure_signing_account:
