@@ -23,41 +23,27 @@ jobs:
             wget
             git
             make
-            mingw-w64-ucrt-x86_64-python-jinja
-            mingw-w64-ucrt-x86_64-python-pip
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-ninja
-            mingw-w64-ucrt-x86_64-pkgconf
+            cmake
+            ninja
+            mingw-w64-x86_64-python-jinja
+            mingw-w64-x86_64-python-pip
+            pkgconf
             diffutils
-            mingw-w64-ucrt-x86_64-toolchain
-            mingw-w64-ucrt-x86_64-yasm
-            mingw-w64-ucrt-x86_64-nasm
-            mingw-w64-ucrt-x86_64-boost
-            mingw-w64-ucrt-x86_64-openssl
-            mingw-w64-ucrt-x86_64-curl
-            mingw-w64-ucrt-x86_64-SDL2
-            mingw-w64-ucrt-x86_64-opus
-            mingw-w64-ucrt-x86_64-libvpx
-            mingw-w64-ucrt-x86_64-zlib
-            mingw-w64-ucrt-x86_64-libpng
-            mingw-w64-ucrt-x86_64-miniupnpc
-            mingw-w64-ucrt-x86_64-qt6-base
-            mingw-w64-ucrt-x86_64-qt6-svg
-            mingw-w64-ucrt-x86_64-qt6-tools
-            mingw-w64-ucrt-x86_64-boost
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-cppwinrt
-            mingw-w64-ucrt-x86_64-curl-winssl
-            mingw-w64-ucrt-x86_64-doxygen
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-graphviz
-            mingw-w64-ucrt-x86_64-miniupnpc
-            mingw-w64-ucrt-x86_64-nlohmann-json
-            mingw-w64-ucrt-x86_64-onevpl
-            mingw-w64-ucrt-x86_64-openssl
-            mingw-w64-ucrt-x86_64-opus
-            mingw-w64-ucrt-x86_64-toolchain
-            mingw-w64-ucrt-x86_64-qt6-static
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-yasm
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-curl
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-libvpx
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-libpng
+            mingw-w64-x86_64-miniupnpc
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-qt6-svg
+            mingw-w64-x86_64-qt6-tools
             
       - name: Update Windows dependencies
         env:
