@@ -73,16 +73,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install CUDA Toolkit 11.8
-        run: |
-          $ProgressPreference = 'SilentlyContinue'
-          Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_522.06_windows.exe" -OutFile "cuda_installer.exe"
-          Start-Process -FilePath ".\cuda_installer.exe" -ArgumentList "-s", "nvcc_11.8", "cudart_11.8" -Wait
-          echo "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      # 6. 验证 CUDA 安装
-      - name: Verify CUDA
-        run: nvcc -V
               
       - name: Setup Dependencies Windows
         # if a dependency needs to be pinned, see https://github.com/LizardByte/build-deps/pull/186
@@ -159,7 +150,17 @@ jobs:
           else
             pacman -Syu --noconfirm "${dependencies[@]}"
           fi
+          
+      - name: Install CUDA Toolkit 11.8
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_522.06_windows.exe" -OutFile "cuda_installer.exe"
+          Start-Process -FilePath ".\cuda_installer.exe" -ArgumentList "-s", "nvcc_11.8", "cudart_11.8" -Wait
+          echo "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      # 6. 验证 CUDA 安装
+      - name: Verify CUDA
+        run: nvcc -V
       - name: Setup dotnet  # needed for wix
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68  # v6.0.0
         with:
